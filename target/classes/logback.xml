@@ -1,0 +1,16 @@
+<configuration>
+    <!-- Suppress CloudSim Plus verbose INFO logging to keep console clean -->
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Suppress CloudSim Plus internal logging -->
+    <logger name="org.cloudsimplus" level="WARN" />
+    <logger name="org.cloudbus" level="WARN" />
+
+    <root level="WARN">
+        <appender-ref ref="STDOUT" />
+    </root>
+</configuration>
