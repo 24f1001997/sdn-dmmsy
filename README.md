@@ -183,8 +183,11 @@ The dashboard features:
 
 ```
 sdn-dmmsy/
-├── pom.xml                                    Maven build configuration
+├── pom.xml                                    Maven build (fat JAR + shade)
 ├── mvnw.cmd                                   Maven Wrapper (no install needed)
+├── Dockerfile                                 Multi-stage Docker build
+├── Procfile                                   Heroku/Railway process definition
+├── .dockerignore                              Docker build exclusions
 ├── .mvn/wrapper/
 │   └── maven-wrapper.properties               Wrapper config (Maven 3.9.9)
 ├── README.md                                  This file
@@ -250,17 +253,95 @@ The frontend connects to the embedded `SimulationServer` via REST API (`/api/run
 
 ---
 
+## ☁️ Cloud Deployment
+
+The application is **fully self-contained** — a single fat JAR that includes:
+- All Java dependencies (CloudSim Plus, JFreeChart, SLF4J, etc.)
+- The entire frontend (HTML/CSS/JS) embedded in the classpath
+- An embedded HTTP server (no Tomcat/Jetty needed)
+
+### Build the Deployable JAR
+
+```bash
+.\mvnw.cmd package -DskipTests
+# Output: target/sdn-dmmsy-simulator-1.0.0.jar (~7 MB)
+```
+
+Run it locally to verify:
+```bash
+java -Djava.awt.headless=true -jar target/sdn-dmmsy-simulator-1.0.0.jar
+# Open http://localhost:8085 in your browser
+```
+
+### Option 1: Docker
+
+```bash
+# Build
+docker build -t sdn-simulator .
+
+# Run
+docker run -p 8085:8085 sdn-simulator
+
+# Open http://localhost:8085
+```
+
+### Option 2: Render (Free Tier)
+
+1. Push this repo to GitHub
+2. Go to [render.com](https://render.com) → **New Web Service**
+3. Connect your GitHub repo
+4. Settings:
+   - **Environment:** Docker
+   - **Instance Type:** Free
+   - **Health Check Path:** `/api/status`
+5. Deploy — Render auto-detects the `Dockerfile`
+
+### Option 3: Railway
+
+1. Push this repo to GitHub
+2. Go to [railway.app](https://railway.app) → **New Project → Deploy from GitHub**
+3. Railway auto-detects the `Dockerfile`
+4. Set `PORT` environment variable if needed (Railway usually sets it automatically)
+
+### Option 4: Manual / VM Deployment
+
+```bash
+# On any server with Java 17+:
+export PORT=8080
+java -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 \
+     -Djava.awt.headless=true \
+     -jar sdn-dmmsy-simulator-1.0.0.jar
+```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `8085` | HTTP server port (cloud platforms set this automatically) |
+
+### Deployment Files
+
+| File | Purpose |
+|------|---------|
+| `Dockerfile` | Multi-stage build (Maven → JDK 17 runtime) |
+| `Procfile` | Heroku/Railway process definition |
+| `.dockerignore` | Excludes build artifacts from Docker context |
+
+---
+
 ## 🛠 Tech Stack
 
 | Component | Technology | Version |
 |-----------|-----------|---------|
 | **Language** | Java | 17+ (tested on 23) |
 | **Build** | Maven (via Wrapper) | 3.9.9 |
+| **Packaging** | Maven Shade Plugin | 3.5.1 (fat JAR) |
 | **Cloud Simulation** | CloudSim Plus | 8.0.0 |
 | **Static Charts** | JFreeChart | 1.5.5 |
 | **Interactive Charts** | Chart.js | 4.4.6 |
 | **Frontend** | HTML + CSS + Vanilla JS | — |
 | **API Server** | JDK HttpServer | Built-in |
+| **Containerization** | Docker (multi-stage) | JDK 17 |
 | **Typography** | Inter, JetBrains Mono | Google Fonts |
 
 ---
@@ -276,3 +357,4 @@ MIT License — See individual source files for details.
 1. Duan, R., Mao, J., Mao, X., Shu, X., & Yin, L. (2025). "Breaking the Sorting Barrier for Directed Single-Source Shortest Paths." *STOC 2025 Best Paper*.
 2. CloudSim Plus 8.0 — [cloudsimplus.org](https://cloudsimplus.org/)
 3. Barabási, A. L., & Albert, R. (1999). "Emergence of Scaling in Random Networks." *Science*.
+

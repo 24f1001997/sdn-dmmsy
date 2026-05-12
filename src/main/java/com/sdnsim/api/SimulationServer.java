@@ -13,31 +13,46 @@ import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.HttpExchange;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executors;
 
 /**
- * SimulationServer.java — Embedded HTTP server for the SDN Simulator frontend.
+ * SimulationServer.java — Embedded HTTP server for the SDN Simulator.
  * <p>
- * Exposes REST endpoints that run simulation phases and return JSON results.
- * Uses only JDK built-in {@code com.sun.net.httpserver} — no external dependencies.
+ * Serves both the REST API and the static frontend from a single process,
+ * making it fully self-contained for cloud deployment.
+ * <p>
+ * Uses only JDK built-in {@code com.sun.net.httpserver} — no external
+ * web framework dependencies.
  *
  * <h2>Endpoints</h2>
  * <ul>
- *   <li>{@code GET /api/run} — Run full simulation and return all results as JSON</li>
+ *   <li>{@code GET /api/run}    — Run full simulation and return all results as JSON</li>
  *   <li>{@code GET /api/status} — Check if server is ready</li>
+ *   <li>{@code GET /}           — Serve the frontend dashboard (static files)</li>
+ * </ul>
+ *
+ * <h2>Cloud Deployment</h2>
+ * <ul>
+ *   <li>Reads {@code PORT} from environment variable (defaults to 8085)</li>
+ *   <li>Binds to {@code 0.0.0.0} for container networking</li>
+ *   <li>Serves frontend from classpath ({@code /static/} inside the JAR)</li>
+ *   <li>Single fat JAR: {@code java -jar sdn-dmmsy-simulator-1.0.0.jar}</li>
  * </ul>
  *
  * @author SDN Routing Simulator Project
  */
 public final class SimulationServer {
 
-    private static final int PORT = 8085;
+    /** Default port if PORT env var is not set. */
+    private static final int DEFAULT_PORT = 8085;
 
     // Configuration (mirrored from SdnSimulatorApp)
     private static final int[] SCALE_POINTS = {500, 1000, 2500, 5000, 10_000, 25_000, 50_000, 100_000};
@@ -49,30 +64,125 @@ public final class SimulationServer {
     private static final double SIM_VOLATILITY_PCT = 0.25;
     private static final String OUTPUT_DIR = "output";
 
+    /** MIME types for static file serving. */
+    private static final Map<String, String> MIME_TYPES = Map.of(
+            "html", "text/html; charset=utf-8",
+            "css",  "text/css; charset=utf-8",
+            "js",   "application/javascript; charset=utf-8",
+            "png",  "image/png",
+            "jpg",  "image/jpeg",
+            "svg",  "image/svg+xml",
+            "ico",  "image/x-icon",
+            "json", "application/json"
+    );
+
     // State
     private static volatile boolean running = false;
 
     private SimulationServer() {}
 
     public static void main(String[] args) throws IOException {
-        HttpServer server = HttpServer.create(new InetSocketAddress(PORT), 0);
+        // Read port from environment (cloud platforms set PORT)
+        int port = DEFAULT_PORT;
+        String envPort = System.getenv("PORT");
+        if (envPort != null && !envPort.isBlank()) {
+            try {
+                port = Integer.parseInt(envPort.trim());
+            } catch (NumberFormatException e) {
+                System.err.println("[WARN] Invalid PORT env var '" + envPort + "', using default " + DEFAULT_PORT);
+            }
+        }
+
+        // Bind to 0.0.0.0 for container networking
+        HttpServer server = HttpServer.create(new InetSocketAddress("0.0.0.0", port), 0);
         server.setExecutor(Executors.newFixedThreadPool(4));
 
-        // CORS-enabled endpoints
+        // API endpoints
         server.createContext("/api/status", SimulationServer::handleStatus);
         server.createContext("/api/run", SimulationServer::handleRun);
+
+        // Static frontend files (served from classpath /static/)
+        server.createContext("/", SimulationServer::handleStatic);
 
         server.start();
         System.out.println();
         System.out.println("=".repeat(60));
-        System.out.println("  SDN Simulator API Server");
-        System.out.println("  Listening on http://localhost:" + PORT);
+        System.out.println("  SDN Simulator — Cloud-Ready Server");
+        System.out.println("  Listening on http://0.0.0.0:" + port);
         System.out.println("  Endpoints:");
+        System.out.println("    GET /            — Frontend dashboard");
         System.out.println("    GET /api/status  — Server health check");
         System.out.println("    GET /api/run     — Run full simulation");
         System.out.println("=".repeat(60));
         System.out.println();
     }
+
+    // =================================================================
+    //  Static File Handler
+    // =================================================================
+
+    /**
+     * Serves static files from the classpath {@code /static/} directory.
+     * <p>
+     * In development, files come from {@code frontend/} copied into
+     * {@code target/classes/static/}. In the fat JAR, they are embedded
+     * inside the archive.
+     */
+    private static void handleStatic(HttpExchange exchange) throws IOException {
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            exchange.sendResponseHeaders(405, -1);
+            return;
+        }
+
+        String path = exchange.getRequestURI().getPath();
+
+        // Default to index.html for root
+        if ("/".equals(path) || path.isBlank()) {
+            path = "/index.html";
+        }
+
+        // Sanitize: prevent directory traversal
+        if (path.contains("..")) {
+            exchange.sendResponseHeaders(403, -1);
+            return;
+        }
+
+        // Load from classpath: /static/index.html, /static/styles.css, etc.
+        String resourcePath = "/static" + path;
+        InputStream is = SimulationServer.class.getResourceAsStream(resourcePath);
+
+        if (is == null) {
+            // 404
+            byte[] msg = "404 Not Found".getBytes("UTF-8");
+            exchange.getResponseHeaders().add("Content-Type", "text/plain");
+            exchange.sendResponseHeaders(404, msg.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(msg);
+            }
+            return;
+        }
+
+        // Determine MIME type
+        String ext = "";
+        int dot = path.lastIndexOf('.');
+        if (dot >= 0) ext = path.substring(dot + 1).toLowerCase();
+        String contentType = MIME_TYPES.getOrDefault(ext, "application/octet-stream");
+
+        // Stream the file
+        byte[] data = is.readAllBytes();
+        is.close();
+
+        exchange.getResponseHeaders().add("Content-Type", contentType);
+        exchange.getResponseHeaders().add("Cache-Control", "public, max-age=3600");
+        exchange.sendResponseHeaders(200, data.length);
+        try (OutputStream os = exchange.getResponseBody()) {
+            os.write(data);
+        }
+    }
+
+    // =================================================================
+    //  API Handlers
+    // =================================================================
 
     private static void handleStatus(HttpExchange exchange) throws IOException {
         String json = "{\"status\":\"ready\",\"running\":" + running + "}";

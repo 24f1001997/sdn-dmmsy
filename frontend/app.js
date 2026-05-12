@@ -5,7 +5,7 @@
    architecture diagram.
    ═══════════════════════════════════════════════════════════════════ */
 
-const API_BASE = 'http://localhost:8085';
+const API_BASE = '';
 
 // ─── State ──────────────────────────────────────────────────────
 let simData = null;

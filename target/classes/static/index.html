@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SDN Routing Simulator — Dijkstra vs DMMSY | Live Dashboard</title>
+    <meta name="description" content="Interactive visualization dashboard for SDN Routing Simulator comparing Dijkstra and DMMSY (STOC 2025) shortest-path algorithms with cloud architecture visualization.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!--  LOADING OVERLAY                                               -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="loading-content">
+            <div class="loading-logo">
+                <div class="pulse-ring"></div>
+                <div class="pulse-ring delay-1"></div>
+                <div class="pulse-ring delay-2"></div>
+                <svg class="loading-icon" viewBox="0 0 80 80" fill="none">
+                    <circle cx="40" cy="40" r="30" stroke="url(#grad-load)" stroke-width="2" stroke-dasharray="6 4" opacity="0.5"/>
+                    <circle cx="40" cy="20" r="4" fill="#50fa7b"/>
+                    <circle cx="58" cy="30" r="4" fill="#8be9fd"/>
+                    <circle cx="58" cy="50" r="4" fill="#ff5555"/>
+                    <circle cx="40" cy="60" r="4" fill="#bd93f9"/>
+                    <circle cx="22" cy="50" r="4" fill="#f1fa8c"/>
+                    <circle cx="22" cy="30" r="4" fill="#ffb86c"/>
+                    <line x1="40" y1="20" x2="58" y2="30" stroke="#50fa7b" stroke-width="1" opacity="0.4"/>
+                    <line x1="58" y1="30" x2="58" y2="50" stroke="#8be9fd" stroke-width="1" opacity="0.4"/>
+                    <line x1="58" y1="50" x2="40" y2="60" stroke="#ff5555" stroke-width="1" opacity="0.4"/>
+                    <line x1="40" y1="60" x2="22" y2="50" stroke="#bd93f9" stroke-width="1" opacity="0.4"/>
+                    <line x1="22" y1="50" x2="22" y2="30" stroke="#f1fa8c" stroke-width="1" opacity="0.4"/>
+                    <line x1="22" y1="30" x2="40" y2="20" stroke="#ffb86c" stroke-width="1" opacity="0.4"/>
+                    <defs>
+                        <linearGradient id="grad-load" x1="0" y1="0" x2="80" y2="80">
+                            <stop offset="0%" stop-color="#50fa7b"/>
+                            <stop offset="100%" stop-color="#8be9fd"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+            </div>
+            <h2 class="loading-title">SDN Routing Simulator</h2>
+            <p class="loading-subtitle" id="loading-status">Connecting to simulation server...</p>
+            <div class="loading-bar-track">
+                <div class="loading-bar-fill" id="loading-bar"></div>
+            </div>
+            <div class="loading-phases" id="loading-phases">
+                <div class="phase-item" id="phase-1"><span class="phase-dot"></span> Scaling Benchmark</div>
+                <div class="phase-item" id="phase-2"><span class="phase-dot"></span> CloudSim Plus</div>
+                <div class="phase-item" id="phase-3"><span class="phase-dot"></span> Volatility Simulation</div>
+                <div class="phase-item" id="phase-4"><span class="phase-dot"></span> Generating Charts</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!--  MAIN DASHBOARD                                                -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <div id="dashboard" class="dashboard hidden">
+        <!-- HEADER -->
+        <header class="header">
+            <div class="header-left">
+                <div class="logo-mark">
+                    <svg viewBox="0 0 40 40" fill="none" width="36" height="36">
+                        <circle cx="20" cy="20" r="16" stroke="url(#hgrad)" stroke-width="2" stroke-dasharray="4 3"/>
+                        <circle cx="20" cy="8" r="3" fill="#50fa7b"/>
+                        <circle cx="30" cy="15" r="3" fill="#8be9fd"/>
+                        <circle cx="30" cy="25" r="3" fill="#ff5555"/>
+                        <circle cx="20" cy="32" r="3" fill="#bd93f9"/>
+                        <circle cx="10" cy="25" r="3" fill="#f1fa8c"/>
+                        <circle cx="10" cy="15" r="3" fill="#ffb86c"/>
+                        <defs>
+                            <linearGradient id="hgrad" x1="0" y1="0" x2="40" y2="40">
+                                <stop offset="0%" stop-color="#50fa7b"/>
+                                <stop offset="100%" stop-color="#8be9fd"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="header-title">SDN Routing Simulator</h1>
+                    <p class="header-sub">Dijkstra vs DMMSY (STOC 2025) — Breaking the Sorting Barrier</p>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="status-badge" id="status-badge">
+                    <span class="status-dot live"></span>
+                    <span>Live</span>
+                </div>
+                <button class="btn-rerun" id="btn-rerun" title="Re-run Simulation">
+                    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 10A7 7 0 1 1 3.5 5.5"/>
+                        <path d="M3 2v4h4"/>
+                    </svg>
+                    Re-run
+                </button>
+            </div>
+        </header>
+
+        <!-- KPI STRIP -->
+        <section class="kpi-strip" id="kpi-strip">
+            <div class="kpi-card" id="kpi-nodes">
+                <div class="kpi-icon kpi-icon-nodes">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <circle cx="12" cy="5" r="3"/><circle cx="5" cy="19" r="3"/><circle cx="19" cy="19" r="3"/>
+                        <line x1="12" y1="8" x2="5" y2="16"/><line x1="12" y1="8" x2="19" y2="16"/>
+                    </svg>
+                </div>
+                <div class="kpi-value" id="kpi-nodes-val">—</div>
+                <div class="kpi-label">Peak Nodes</div>
+            </div>
+            <div class="kpi-card" id="kpi-speedup">
+                <div class="kpi-icon kpi-icon-speedup">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                    </svg>
+                </div>
+                <div class="kpi-value" id="kpi-speedup-val">—</div>
+                <div class="kpi-label">Mean Speedup</div>
+            </div>
+            <div class="kpi-card" id="kpi-hosts">
+                <div class="kpi-icon kpi-icon-hosts">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <rect x="2" y="3" width="20" height="6" rx="1"/><rect x="2" y="15" width="20" height="6" rx="1"/>
+                        <circle cx="6" cy="6" r="1"/><circle cx="6" cy="18" r="1"/>
+                        <line x1="12" y1="9" x2="12" y2="15"/>
+                    </svg>
+                </div>
+                <div class="kpi-value" id="kpi-hosts-val">—</div>
+                <div class="kpi-label">Hosts / VMs</div>
+            </div>
+            <div class="kpi-card" id="kpi-cloudlets">
+                <div class="kpi-icon kpi-icon-cloudlets">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
+                    </svg>
+                </div>
+                <div class="kpi-value" id="kpi-cloudlets-val">—</div>
+                <div class="kpi-label">Cloudlets</div>
+            </div>
+            <div class="kpi-card" id="kpi-time">
+                <div class="kpi-icon kpi-icon-time">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                </div>
+                <div class="kpi-value" id="kpi-time-val">—</div>
+                <div class="kpi-label">Total Time</div>
+            </div>
+            <div class="kpi-card" id="kpi-correct">
+                <div class="kpi-icon kpi-icon-correct">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                </div>
+                <div class="kpi-value" id="kpi-correct-val">—</div>
+                <div class="kpi-label">Correctness</div>
+            </div>
+        </section>
+
+        <!-- MAIN CONTENT GRID -->
+        <main class="main-grid">
+            <!-- LEFT: Charts -->
+            <div class="charts-column">
+                <!-- Chart 1: Scaling Comparison -->
+                <div class="card chart-card" id="card-scaling">
+                    <div class="card-header">
+                        <h2 class="card-title">Scaling Comparison</h2>
+                        <span class="card-badge">Execution Time vs Nodes</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="chart-scaling"></canvas>
+                    </div>
+                </div>
+
+                <!-- Chart 2: Speedup Ratio -->
+                <div class="card chart-card" id="card-speedup">
+                    <div class="card-header">
+                        <h2 class="card-title">Speedup Ratio</h2>
+                        <span class="card-badge">DMMSY vs Dijkstra</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="chart-speedup"></canvas>
+                    </div>
+                </div>
+
+                <!-- Chart 3: Volatility Timeline -->
+                <div class="card chart-card" id="card-volatility">
+                    <div class="card-header">
+                        <h2 class="card-title">Volatility Timeline</h2>
+                        <span class="card-badge">Auto-Scaling Event</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="chart-volatility"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT: Cloud Architecture + Data -->
+            <div class="info-column">
+                <!-- Cloud Architecture Diagram -->
+                <div class="card arch-card" id="card-arch">
+                    <div class="card-header">
+                        <h2 class="card-title">Cloud Architecture</h2>
+                        <span class="card-badge">SDN Controller Infrastructure</span>
+                    </div>
+                    <div class="arch-container" id="arch-container">
+                        <canvas id="canvas-arch"></canvas>
+                    </div>
+                </div>
+
+                <!-- Benchmark Table -->
+                <div class="card table-card" id="card-table">
+                    <div class="card-header">
+                        <h2 class="card-title">Benchmark Results</h2>
+                        <span class="card-badge">All Scale Points</span>
+                    </div>
+                    <div class="table-scroll">
+                        <table class="data-table" id="benchmark-table">
+                            <thead>
+                                <tr>
+                                    <th>Nodes</th>
+                                    <th>Edges</th>
+                                    <th>Dijkstra (ms)</th>
+                                    <th>DMMSY (ms)</th>
+                                    <th>Speedup</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="benchmark-tbody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Algorithm Comparison -->
+                <div class="card algo-card" id="card-algo">
+                    <div class="card-header">
+                        <h2 class="card-title">Algorithm Deep Dive</h2>
+                        <span class="card-badge">Complexity Analysis</span>
+                    </div>
+                    <div class="algo-compare">
+                        <div class="algo-box dijkstra-box">
+                            <div class="algo-name">Dijkstra</div>
+                            <div class="algo-complexity">O(m + n log n)</div>
+                            <div class="algo-desc">Global priority queue with strict total ordering. 65-year standard.</div>
+                            <div class="algo-bar-container">
+                                <div class="algo-bar dijkstra-bar" id="algo-bar-dij"></div>
+                            </div>
+                            <div class="algo-time" id="algo-time-dij">— ms</div>
+                        </div>
+                        <div class="algo-vs">VS</div>
+                        <div class="algo-box dmmsy-box">
+                            <div class="algo-name">DMMSY</div>
+                            <div class="algo-complexity">O(m log<sup>2/3</sup> n)</div>
+                            <div class="algo-desc">Partial-sorting heap with band-based BMSSP. STOC 2025 Best Paper.</div>
+                            <div class="algo-bar-container">
+                                <div class="algo-bar dmmsy-bar" id="algo-bar-dmm"></div>
+                            </div>
+                            <div class="algo-time" id="algo-time-dmm">— ms</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- FOOTER -->
+        <footer class="footer">
+            <span>SDN Routing Simulator — Java 17 + CloudSim Plus 8.0 + DMMSY (STOC 2025)</span>
+            <span class="footer-sep">|</span>
+            <span id="footer-timestamp"></span>
+        </footer>
+    </div>
+
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
