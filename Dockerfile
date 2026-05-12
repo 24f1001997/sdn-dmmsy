@@ -5,21 +5,22 @@
 # ============================================================
 
 # --- Stage 1: Build ---
-FROM eclipse-temurin:17-jdk AS builder
+FROM maven:3.9-eclipse-temurin-17 AS builder
 
 WORKDIR /app
 
-# Copy Maven Wrapper and project files
-COPY .mvn/ .mvn/
-COPY mvnw.cmd mvnw ./
+# Copy POM first for dependency caching
 COPY pom.xml ./
+
+# Download dependencies (cached layer unless pom.xml changes)
+RUN mvn dependency:go-offline -q
 
 # Copy source code and frontend
 COPY src/ src/
 COPY frontend/ frontend/
 
-# Make mvnw executable and build fat JAR (skip tests)
-RUN chmod +x mvnw && ./mvnw package -DskipTests -q
+# Build fat JAR (skip tests for faster builds)
+RUN mvn package -DskipTests -q
 
 # --- Stage 2: Runtime ---
 FROM eclipse-temurin:17-jre
@@ -43,8 +44,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:${PORT}/api/status || exit 1
 
 # Run the application
-# -XX:+UseContainerSupport enables JVM awareness of container memory limits
-# -XX:MaxRAMPercentage=75 prevents OOM in constrained containers
 CMD ["java", \
      "-XX:+UseContainerSupport", \
      "-XX:MaxRAMPercentage=75.0", \

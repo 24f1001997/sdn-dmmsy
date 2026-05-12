@@ -3,4 +3,5 @@
 target/
 output/
 *.md
-.mvn/wrapper/maven-wrapper.jar
+mvnw.cmd
+.mvn/
