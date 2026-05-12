@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
 //  SIMULATION FLOW
 // ═══════════════════════════════════════════════════════════════════
 
-async function startSimulation() {
+async function startSimulation(fresh = false) {
     showLoading();
     updateLoadingStatus('Connecting to simulation server...');
     setLoadingBar(5);
@@ -49,7 +49,10 @@ async function startSimulation() {
         updateLoadingStatus('Running Phase 2: CloudSim Plus Simulation...');
         setLoadingBar(35);
 
-        const response = await fetch(`${API_BASE}/api/run`);
+        const endpoint = fresh
+            ? `${API_BASE}/api/run?fresh=true`
+            : `${API_BASE}/api/run`;
+        const response = await fetch(endpoint);
         if (!response.ok) throw new Error(`Server returned ${response.status}`);
 
         setPhase(2, 'done');
@@ -92,7 +95,7 @@ async function rerunSimulation() {
     // Reset cache on server by calling with force
     simData = null;
     $('#dashboard').classList.add('hidden');
-    startSimulation();
+    startSimulation(true);
 }
 
 // ═══════════════════════════════════════════════════════════════════

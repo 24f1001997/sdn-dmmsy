@@ -49,8 +49,7 @@ public final class SimulationServer {
     private static final double SIM_VOLATILITY_PCT = 0.25;
     private static final String OUTPUT_DIR = "output";
 
-    // Cached results
-    private static volatile String cachedJson = null;
+    // State
     private static volatile boolean running = false;
 
     private SimulationServer() {}
@@ -76,8 +75,7 @@ public final class SimulationServer {
     }
 
     private static void handleStatus(HttpExchange exchange) throws IOException {
-        String json = "{\"status\":\"ready\",\"running\":" + running +
-                ",\"cached\":" + (cachedJson != null) + "}";
+        String json = "{\"status\":\"ready\",\"running\":" + running + "}";
         sendJson(exchange, 200, json);
     }
 
@@ -87,16 +85,9 @@ public final class SimulationServer {
             return;
         }
 
-        // Return cached results if available
-        if (cachedJson != null) {
-            sendJson(exchange, 200, cachedJson);
-            return;
-        }
-
         running = true;
         try {
             String json = runFullSimulation();
-            cachedJson = json;
             sendJson(exchange, 200, json);
         } catch (Exception e) {
             sendJson(exchange, 500, "{\"error\":\"" + escapeJson(e.getMessage()) + "\"}");
